@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Not Twitter</title>
+
+    <style>
+      *,
+      *::after,
+      *::before {
+        box-sizing: content-box;
+      }
+
+      :root {
+        --br: 0.5rem;
+        --br-s: 0.25rem;
+
+        background-color: paleturquoise;
+        font-family: system-ui, sans-serif;
+        line-height: 1.3;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      :where(button) {
+        appearance: none;
+        background-color: transparent;
+        border: 0;
+        border-radius: var(--br);
+        color: currentColor;
+        cursor: pointer;
+        font: inherit;
+        padding: 0.5rem 1rem;
+        text-transform: inherit;
+      }
+
+      .cta {
+        background-color: dodgerblue;
+        border: 1px solid navy;
+        color: white;
+        position: relative;
+        transition: background-color 250ms ease-in;
+
+        &::after {
+          content: "";
+          background-color: navy;
+          border-radius: inherit;
+          inset: 0;
+          position: absolute;
+          transform: translateY(4px);
+          transition: transform 200ms ease-in;
+          z-index: -1;
+        }
+
+        &:hover {
+          background-color: oklch(from dodgerblue 75% c h);
+        }
+
+        &:hover::after {
+          transform: translateY(2px);
+        }
+      }
+
+      .wrapper {
+        margin-inline: auto;
+        max-width: 30rem;
+        padding-inline: 0.5rem;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: 3fr min-content;
+        gap: 1rem;
+        align-items: center;
+        padding-block-start: 1rem;
+
+        nav {
+          isolation: isolate;
+          z-index: 0;
+        }
+
+        h1 {
+          font: inherit;
+          font-size: x-large;
+          font-weight: bold;
+          margin-block: 0;
+        }
+      }
+
+      main {
+        display: grid;
+        gap: 1rem;
+        margin-block: 2rem 1rem;
+      }
+
+      article {
+        background-color: white;
+        border: 1px solid darkturquoise;
+        border-radius: var(--br);
+        padding: 1.5rem;
+
+        p {
+          margin-block: 0;
+        }
+
+        footer {
+          font-size: x-small;
+          text-transform: uppercase;
+          margin-block-start: 1rem;
+          padding-block-start: 1rem;
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: 1rem;
+        }
+
+        ul[role="list"] {
+          list-style: none;
+          margin-block: 0;
+          padding-inline: 0;
+          display: flex;
+          justify-content: end;
+          align-items: center;
+        }
+
+        a,
+        button {
+          border-radius: var(--br-s);
+          color: currentColor;
+          cursor: pointer;
+          padding: 0.25rem 0.5rem;
+          text-decoration: underline;
+          text-underline-offset: 0.2ex;
+
+          &:hover {
+            background-color: whitesmoke;
+            text-decoration-color: transparent;
+            transition: all 250ms ease-out;
+          }
+        }
+      }
+
+      dialog {
+        border: 0;
+        border-radius: var(--br);
+        inline-size: auto;
+
+        &::backdrop {
+          background-color: oklch(from dodgerblue l c h / 75%);
+        }
+
+        form {
+          display: grid;
+          gap: 0.5rem;
+          padding: 0.5rem;
+        }
+
+        label {
+          font-size: x-small;
+          text-transform: uppercase;
+        }
+
+        textarea {
+          border-radius: var(--br);
+          padding: 0.5rem;
+        }
+
+        footer {
+          display: grid;
+          gap: 1rem;
+          justify-content: stretch;
+          isolation: isolate;
+          margin-block-start: 1rem;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        button {
+          flex: 1 1 auto;
+
+          &[type="button"] {
+            background-color: whitesmoke;
+            border: 1px solid navy;
+            border-radius: var(--br);
+            position: relative;
+            transition: background-color 250ms ease-in;
+
+            &::after {
+              content: "";
+              background-color: navy;
+              border-radius: inherit;
+              inset: 0;
+              position: absolute;
+              transform: translateY(4px);
+              transition: transform 200ms ease-in;
+              z-index: -1;
+            }
+
+            &:hover {
+              background-color: white;
+            }
+
+            &:hover::after {
+              transform: translateY(2px);
+            }
+          }
+        }
+      }
+    </style>
+
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  </head>
+  <body>
+    <dialog
+      id="createModal"
+      class="wrapper"
+    >
+      <form
+        hx-post="/api/entries"
+        hx-target="#entries"
+        hx-swap="afterbegin"
+      >
+        <label for="createEntry">What's going on?</label>
+        <textarea
+          required
+          name="status"
+          id="createEntry"
+          rows="10"
+        ></textarea>
+
+        <footer>
+          <button type="button">Close</button>
+          <button class="cta">Create post</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <header
+      role="banner"
+      class="wrapper"
+    >
+      <h1><span aria-hidden>🐦‍⬛</span>&nbsp;Not Twitter</h1>
+
+      <nav aria-label="global">
+        <button
+          type="button"
+          id="createModalBtn"
+          class="cta"
+        >
+          Write
+        </button>
+      </nav>
+    </header>
+
+    <main
+      id="entries"
+      hx-get="/api/entries"
+      hx-trigger="load"
+      class="wrapper"
+    ></main>
+
+    <script>
+      const createModalBtn = document.getElementById("createModalBtn");
+      const createModal = document.getElementById("createModal");
+      const createModalForm = createModal.querySelector("#createModal form");
+
+      createModalBtn.addEventListener("click", () => {
+        createModal.showModal();
+      });
+      createModal.addEventListener("htmx:afterRequest", () => {
+        createModal.close();
+        createModalForm.reset();
+      });
+
+      const closeCreateModalBtn = createModal.querySelector(
+        '#createModal button[type="button"]'
+      );
+      closeCreateModalBtn.addEventListener("click", () => {
+        createModal.close();
+        createModalForm.reset();
+      });
+    </script>
+  </body>
+</html>
