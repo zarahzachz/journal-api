@@ -75,19 +75,35 @@ async function handleAPIRequest(req: Request, url: URL): Promise<Response> {
 // Generate Entry Markup for HTMX
 function entryMarkup(entry: Entry): string {
   return `
-<article id="entry-${entry.id}" class="entry">
-  <div class="content">${entry.content}</div>
+<article id="entry-${entry.id}">
+  <div>${entry.content}</div>
   <footer>
-    <p><time datetime="${entry.date}">${new Date(
-    entry.date
-  ).toLocaleDateString()}</time></p>
+    <p>
+      <time datetime="${entry.date}">
+        ${new Date(entry.date).toLocaleDateString()}
+      </time>
+    </p>
     <ul role="list">
-      <li><a hx-get="/api/entries/${
-        entry.id
-      }" hx-target="#entries" hx-push-url="true">View</a></li>
-      <li><button type="button" hx-delete="/api/entries/${
-        entry.id
-      }" hx-target="#entry-${entry.id}" hx-swap="outerHTML">Delete</button></li>
+      <li>
+        <button 
+          type="button" 
+          hx-get="/api/entries/${entry.id}" 
+          hx-target="#entries" 
+          hx-push-url="true"
+        >
+          View
+        </button>
+      </li>
+      <li>
+        <button 
+          type="button" 
+          hx-delete="/api/entries/${entry.id}" 
+          hx-target="#entry-${entry.id}" 
+          hx-swap="outerHTML"
+        >
+          Delete
+        </button>
+      </li>
     </ul>
   </footer>
 </article>`;

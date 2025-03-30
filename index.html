@@ -216,7 +216,7 @@
   </head>
   <body>
     <dialog
-      id="createModal"
+      id="modal"
       class="wrapper"
     >
       <form
@@ -224,17 +224,22 @@
         hx-target="#entries"
         hx-swap="afterbegin"
       >
-        <label for="createEntry">What's going on?</label>
+        <label for="entry">What's going on?</label>
         <textarea
           required
           name="status"
-          id="createEntry"
+          id="entry"
           rows="10"
         ></textarea>
 
         <footer>
-          <button type="button">Close</button>
-          <button class="cta">Create post</button>
+          <button class="cta">Post</button>
+          <button
+            type="button"
+            onclick="document.getElementById('modal').close(); document.querySelector('#modal form').reset();"
+          >
+            Close
+          </button>
         </footer>
       </form>
     </dialog>
@@ -248,7 +253,7 @@
       <nav aria-label="global">
         <button
           type="button"
-          id="createModalBtn"
+          onclick="document.getElementById('modal').showModal()"
           class="cta"
         >
           Write
@@ -264,24 +269,12 @@
     ></main>
 
     <script>
-      const createModalBtn = document.getElementById("createModalBtn");
-      const createModal = document.getElementById("createModal");
-      const createModalForm = createModal.querySelector("#createModal form");
+      const modal = document.getElementById("modal");
+      const modalForm = modal.querySelector("#modal form");
 
-      createModalBtn.addEventListener("click", () => {
-        createModal.showModal();
-      });
-      createModal.addEventListener("htmx:afterRequest", () => {
-        createModal.close();
-        createModalForm.reset();
-      });
-
-      const closeCreateModalBtn = createModal.querySelector(
-        '#createModal button[type="button"]'
-      );
-      closeCreateModalBtn.addEventListener("click", () => {
-        createModal.close();
-        createModalForm.reset();
+      modal.addEventListener("htmx:afterRequest", () => {
+        modal.close();
+        modalForm.reset();
       });
     </script>
   </body>
