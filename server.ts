@@ -16,40 +16,20 @@ entries.set("1", {
   date: new Date().toISOString(),
 });
 
-function entryMarkup(entry: Entry): string {
-  return `
-<article id="entry-${entry.id}">
-  <div>${entry.content}</div>
-  <footer>
-    <p>
-      <time datetime="${entry.date}">
-        ${new Date(entry.date).toLocaleDateString()}
-      </time>
-    </p>
-    <ul role="list">
-      <li>
-        <button 
-          type="button" 
-          hx-get="/api/entries/${entry.id}" 
-          hx-target="#entries" 
-          hx-push-url="true"
-        >
-          View
-        </button>
-      </li>
-      <li>
-        <button 
-          type="button" 
-          hx-delete="/api/entries/${entry.id}" 
-          hx-target="#entry-${entry.id}" 
-          hx-swap="outerHTML"
-        >
-          Delete
-        </button>
-      </li>
-    </ul>
-  </footer>
-</article>`;
+async function validateRequestBody(ctx: any): Promise<{ content: string }> {
+  const body = ctx.request.body();
+
+  if (body.type !== "json") {
+    ctx.throw(Status.BadRequest, "Invalid data");
+  }
+
+  const { content } = await body.value;
+
+  if (!content) {
+    ctx.throw(Status.BadRequest, "Content is required");
+  }
+
+  return { content };
 }
 
 const API_ENDPOINT = "/api/entries";
@@ -57,12 +37,11 @@ const API_ENDPOINT = "/api/entries";
 const router = new Router();
 router
   .get(API_ENDPOINT, (ctx) => {
-    const data = Array.from(entries.values()).reverse();
+    const data = Array.from(entries.values());
 
-    ctx.response.body = data.length
-      ? data.map((entry) => entryMarkup(entry)).join("")
-      : "No content";
-    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.body = data.length ? JSON.stringify(data) : "No content";
+    ctx.response.headers.set("Content-Type", "application/json");
+    ctx.response.status = Status.OK;
   })
   .get(`${API_ENDPOINT}/:id`, (ctx) => {
     const id = ctx.params.id;
@@ -73,23 +52,14 @@ router
 
     const entry = entries.get(id);
 
-    ctx.response.body = entry ? entryMarkup(entry) : "Entry not found";
-    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.body = entry
+      ? JSON.stringify(entry)
+      : { message: "Entry not found" };
+    ctx.response.headers.set("Content-Type", "application/json");
+    ctx.response.status = Status.OK;
   })
   .post(API_ENDPOINT, async (ctx) => {
-    const body = ctx.request.body;
-
-    if (body.type() !== "form") {
-      ctx.throw(Status.BadRequest, "Invalid data");
-    }
-
-    const form = await body.form();
-    const content = form.get("status") as string;
-
-    if (!content) {
-      ctx.throw(Status.BadRequest, "Content is required");
-    }
-
+    const { content } = await validateRequestBody(ctx);
     const newEntry: Entry = {
       id: crypto.randomUUID(),
       content,
@@ -98,8 +68,8 @@ router
 
     entries.set(newEntry.id, newEntry);
 
-    ctx.response.body = entryMarkup(newEntry);
-    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.body = JSON.stringify(newEntry);
+    ctx.response.headers.set("Content-Type", "application/json");
     ctx.response.status = Status.Created;
   })
   .put(`${API_ENDPOINT}/:id`, async (ctx) => {
@@ -109,30 +79,18 @@ router
       ctx.throw(Status.NotFound, "Entry not found");
     }
 
-    const body = ctx.request.body;
-
-    if (body.type() !== "form") {
-      ctx.throw(Status.BadRequest, "Invalid data");
-    }
-
-    const form = await body.form();
-    const content = form.get("status") as string;
-
-    if (!content) {
-      ctx.throw(Status.BadRequest, "Content is required");
-    }
-
+    const { content } = await validateRequestBody(ctx);
+    const existingEntry = entries.get(id) as Entry;
     const updatedEntry: Entry = {
-      id,
+      ...existingEntry,
       content,
-      date: entries.get(id)?.date as string,
       modDate: new Date().toISOString(),
     };
 
     entries.set(id, updatedEntry);
 
-    ctx.response.body = entryMarkup(updatedEntry);
-    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.body = JSON.stringify(updatedEntry);
+    ctx.response.headers.set("Content-Type", "application/json");
     ctx.response.status = Status.OK;
   })
   .delete(`${API_ENDPOINT}/:id`, (ctx) => {
@@ -144,30 +102,14 @@ router
 
     entries.delete(id);
 
-    ctx.response.status = Status.OK;
-    ctx.response.body = "";
+    ctx.response.status = Status.NoContent;
+    ctx.response.body = null;
   });
 
 const app = new Application();
 
-app.use((ctx, next) => {
-  ctx.response.headers.set("Access-Control-Allow-Origin", "*");
-  ctx.response.headers.set(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-  ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-  return next();
-});
 app.use(router.routes());
 app.use(router.allowedMethods());
-
-app.use(async (context) => {
-  await context.send({
-    root: Deno.cwd(),
-    index: "index.html",
-  });
-});
 
 app.addEventListener("listen", ({ hostname, port, serverType }) => {
   console.log(
