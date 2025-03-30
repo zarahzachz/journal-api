@@ -1,8 +1,5 @@
-import { join } from "@std/path";
+import { Application, Router, Status } from "@oak/oak";
 
-const API_ENDPOINT = "/api/entries";
-
-// Mock data
 interface Entry {
   id: string;
   content: string;
@@ -11,6 +8,7 @@ interface Entry {
 }
 
 const entries = new Map<string, Entry>();
+
 entries.set("1", {
   id: "1",
   content:
@@ -18,61 +16,6 @@ entries.set("1", {
   date: new Date().toISOString(),
 });
 
-// Utility: Add CORS Headers
-function addCORS(response: Response): Response {
-  response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-  response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-  return response;
-}
-
-// Serve Static Files
-async function serveFile(pathname: string): Promise<Response> {
-  const filePath = join(Deno.cwd(), pathname);
-  try {
-    const file = await Deno.readFile(filePath);
-    return new Response(file, { headers: { "Content-Type": "text/html" } });
-  } catch {
-    return new Response("File not found", { status: 404 });
-  }
-}
-
-// API Request Handler
-async function handleAPIRequest(req: Request, url: URL): Promise<Response> {
-  if (req.method === "OPTIONS")
-    return addCORS(new Response(null, { status: 204 }));
-
-  const id = url.pathname.replace(`${API_ENDPOINT}/`, "").split("/")[0];
-  let response: Response;
-
-  switch (req.method) {
-    case "GET":
-      response = id && id !== "entries" ? getEntry(id) : getEntries();
-      break;
-    case "POST":
-      response = await createEntry(req);
-      break;
-    case "PUT":
-      response = id
-        ? await updateEntry(req, id)
-        : new Response("ID required", { status: 400 });
-      break;
-    case "DELETE":
-      response = id
-        ? deleteEntry(id)
-        : new Response("ID required", { status: 400 });
-      break;
-    default:
-      response = new Response("Method not allowed", { status: 405 });
-  }
-
-  return addCORS(response);
-}
-
-// Generate Entry Markup for HTMX
 function entryMarkup(entry: Entry): string {
   return `
 <article id="entry-${entry.id}">
@@ -109,99 +52,127 @@ function entryMarkup(entry: Entry): string {
 </article>`;
 }
 
-// GET /api/entries
-function getEntries(): Response {
-  const data = Array.from(entries.values()).reverse();
-  return data.length
-    ? new Response(data.map(entryMarkup).join(""), {
-        headers: { "Content-Type": "text/html" },
-      })
-    : new Response("No content", { status: 204 });
-}
+const API_ENDPOINT = "/api/entries";
 
-// GET /api/entries/:id
-function getEntry(id: string): Response {
-  const entry = entries.get(id);
-  return entry
-    ? new Response(entryMarkup(entry), {
-        headers: { "Content-Type": "text/html" },
-      })
-    : new Response("Entry not found", { status: 404 });
-}
+const router = new Router();
+router
+  .get(API_ENDPOINT, (ctx) => {
+    const data = Array.from(entries.values()).reverse();
 
-// POST /api/entries
-async function createEntry(request: Request): Promise<Response> {
-  try {
-    const formData = await request.formData();
-    const content = formData.get("status") as string;
+    ctx.response.body = data.length
+      ? data.map((entry) => entryMarkup(entry)).join("")
+      : "No content";
+    ctx.response.headers.set("Content-Type", "text/html");
+  })
+  .get(`${API_ENDPOINT}/:id`, (ctx) => {
+    const id = ctx.params.id;
 
-    if (!content)
-      return new Response(JSON.stringify({ error: "Content is required" }), {
-        status: 400,
-      });
+    if (!id || !entries.has(id)) {
+      ctx.throw(Status.NotFound, "Entry not found");
+    }
+
+    const entry = entries.get(id);
+
+    ctx.response.body = entry ? entryMarkup(entry) : "Entry not found";
+    ctx.response.headers.set("Content-Type", "text/html");
+  })
+  .post(API_ENDPOINT, async (ctx) => {
+    const body = ctx.request.body;
+
+    if (body.type() !== "form") {
+      ctx.throw(Status.BadRequest, "Invalid data");
+    }
+
+    const form = await body.form();
+    const content = form.get("status") as string;
+
+    if (!content) {
+      ctx.throw(Status.BadRequest, "Content is required");
+    }
 
     const newEntry: Entry = {
       id: crypto.randomUUID(),
       content,
       date: new Date().toISOString(),
     };
+
     entries.set(newEntry.id, newEntry);
 
-    return new Response(entryMarkup(newEntry), {
-      headers: { "Content-Type": "text/html" },
-      status: 201,
-    });
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid data" }), {
-      status: 400,
-    });
-  }
-}
+    ctx.response.body = entryMarkup(newEntry);
+    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.status = Status.Created;
+  })
+  .put(`${API_ENDPOINT}/:id`, async (ctx) => {
+    const id = ctx.params.id;
 
-// PUT /api/entries/:id
-async function updateEntry(request: Request, id: string): Promise<Response> {
-  const entry = entries.get(id);
-  if (!entry) return new Response("Entry not found", { status: 404 });
+    if (!id || !entries.has(id)) {
+      ctx.throw(Status.NotFound, "Entry not found");
+    }
 
-  try {
-    const formData = await request.formData();
-    const content = formData.get("status") as string;
+    const body = ctx.request.body;
 
-    if (!content)
-      return new Response(JSON.stringify({ error: "Content is required" }), {
-        status: 400,
-      });
+    if (body.type() !== "form") {
+      ctx.throw(Status.BadRequest, "Invalid data");
+    }
 
-    const updatedEntry = {
-      ...entry,
+    const form = await body.form();
+    const content = form.get("status") as string;
+
+    if (!content) {
+      ctx.throw(Status.BadRequest, "Content is required");
+    }
+
+    const updatedEntry: Entry = {
+      id,
       content,
+      date: entries.get(id)?.date as string,
       modDate: new Date().toISOString(),
     };
+
     entries.set(id, updatedEntry);
 
-    return new Response(entryMarkup(updatedEntry), {
-      headers: { "Content-Type": "text/html" },
-    });
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid data" }), {
-      status: 400,
-    });
-  }
-}
+    ctx.response.body = entryMarkup(updatedEntry);
+    ctx.response.headers.set("Content-Type", "text/html");
+    ctx.response.status = Status.OK;
+  })
+  .delete(`${API_ENDPOINT}/:id`, (ctx) => {
+    const id = ctx.params.id;
 
-// DELETE /api/entries/:id
-function deleteEntry(id: string): Response {
-  if (!entries.has(id)) return new Response("Entry not found", { status: 404 });
+    if (!id || !entries.has(id)) {
+      ctx.throw(Status.NotFound, "Entry not found");
+    }
 
-  entries.delete(id);
-  return new Response(null, { status: 200 });
-}
+    entries.delete(id);
 
-// Start Server
-Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  if (url.pathname.startsWith(API_ENDPOINT))
-    return await handleAPIRequest(req, url);
-  if (url.pathname === "/") return await serveFile("index.html");
-  return new Response("Not Found", { status: 404 });
+    ctx.response.status = Status.OK;
+    ctx.response.body = "";
+  });
+
+const app = new Application();
+
+app.use((ctx, next) => {
+  ctx.response.headers.set("Access-Control-Allow-Origin", "*");
+  ctx.response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return next();
 });
+app.use(router.routes());
+app.use(router.allowedMethods());
+
+app.use(async (context) => {
+  await context.send({
+    root: Deno.cwd(),
+    index: "index.html",
+  });
+});
+
+app.addEventListener("listen", ({ hostname, port, serverType }) => {
+  console.log(
+    `🚀 Server running at http://${hostname}:${port} (using ${serverType})`
+  );
+});
+
+await app.listen({ hostname: "127.0.0.1", port: 8000 });
