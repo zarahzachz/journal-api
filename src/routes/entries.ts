@@ -51,7 +51,7 @@ router
     ctx.response.headers.set("Content-Type", "application/json");
     ctx.response.status = Status.Created;
   })
-  .put(`${API_ENDPOINT}/:id`, async (ctx) => {
+  .patch(`${API_ENDPOINT}/:id`, async (ctx) => {
     const id = ctx.params.id;
 
     if (!id || !entries.has(id)) {
