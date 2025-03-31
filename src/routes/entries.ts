@@ -1,40 +1,19 @@
-import { Application, Router, Status } from "@oak/oak";
-
-interface Entry {
-  id: string;
-  content: string;
-  date: string;
-  modDate?: string;
-}
+import { Router, Status } from "@oak/oak";
+import { validateRequestBody } from "../utils/validation.ts";
+import { Entry } from "../types/entry.ts";
 
 const entries = new Map<string, Entry>();
 
 entries.set("1", {
   id: "1",
   content:
-    "This is the first entry of my Journal app built with Deno and HTMX. This is a pretty barebones implementation - no Markdown support, no links or images, etc. - but it works well for a simple journal. Like Twitter, there's no edit feature. I just couldn't figure the UI out for it. I may add it later, but for now, if I want to update an entry, I just delete it and create a new one.",
+    "This is the first entry in my journal API. It's a simple entry to demonstrate the API functionality. Feel free to modify it as needed.",
   date: new Date().toISOString(),
 });
 
-async function validateRequestBody(ctx: any): Promise<{ content: string }> {
-  const body = ctx.request.body();
-
-  if (body.type !== "json") {
-    ctx.throw(Status.BadRequest, "Invalid data");
-  }
-
-  const { content } = await body.value;
-
-  if (!content) {
-    ctx.throw(Status.BadRequest, "Content is required");
-  }
-
-  return { content };
-}
-
+const router = new Router();
 const API_ENDPOINT = "/api/entries";
 
-const router = new Router();
 router
   .get(API_ENDPOINT, (ctx) => {
     const data = Array.from(entries.values());
@@ -106,15 +85,4 @@ router
     ctx.response.body = null;
   });
 
-const app = new Application();
-
-app.use(router.routes());
-app.use(router.allowedMethods());
-
-app.addEventListener("listen", ({ hostname, port, serverType }) => {
-  console.log(
-    `🚀 Server running at http://${hostname}:${port} (using ${serverType})`
-  );
-});
-
-await app.listen({ hostname: "127.0.0.1", port: 8000 });
+export default router;
